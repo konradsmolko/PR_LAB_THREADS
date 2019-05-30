@@ -31,7 +31,7 @@ void *check_fact(void *ptr)
 	}
 
 	// Finally, return the value
-	if (isprime) printf("Found a prime number: %i\n", number);
+	if (isprime) printf("Prime: %i\n", number);
 	// void pthread_exit(void *retval)
 }
 
