@@ -4,70 +4,106 @@
 #include <pthread.h>
 #include <stdbool.h>
 
-#define NTHREADS 10
+#define NTHREADS				10
+#define MAXPRIMES				1000
+#define THREAD_STOPPED	0xDEAD
+#define THREAD_RUNNING	0xBEEF
 
 /*
 compile with:
 gcc -pthread main.c -o prog
 */
 
-void *check_fact(void *ptr)
+struct // thread_args
 {
-	// We don't dare touch the ptr, and it makes the code look clearer
-	// so just copying it with thread-safe function
 	int number;
-	memcpy(&number, ptr, sizeof(int));
+	int *array;
+	int *status;
+	pthread_mutex_t mutex;
+} THRARG, *PTHRARG;
+
+
+void *check_fact(void *arguments)
+{
+	PTHRARG args = arguments;
+	int number = args->number;
+	int *array = args->array;
+	pthread_mutex_t m = args->mutex;
+	static int index = 0;
 
 	// Magic happens here
-	bool isprime = true;
-	if (number <= 3) isprime = true;
-	else for (int i = 2; i < number / 2 + 1; i++)
-	{
-		if (number % i == 0)
-		{
-			isprime = false;
-			break;
-		}
-	}
+	if (number > 3)
+		for (int i = 2; i < number / 2 + 1; i++)
+			if (number % i == 0)
+				{
+					free(args);
+					return 1;
+				}
 
 	// Finally, return the value
-	if (isprime) printf("Found a prime number: %i\n", number);
-	// void pthread_exit(void *retval)
+	// TODO return the value
+	free(args);
+	return 0;
 }
 
-
+// Search for factorials in range, sending each factorial to a new thread
 void factorial(const int start, const int end)
 {
-	// Search for factorials in range, sending each factorial to a new thread
-	pthread_t thread_id[NTHREADS];
+	// Generate numbers in given range
 	int total_num = end - start + 1;
-	int *ptr = (int*)malloc(total_num * sizeof(int));
+	int *ptr = (int*) malloc(total_num * sizeof(int));
 	for (int i = 0; i < total_num; i++)
-	{
 		ptr[i] = i + start;
-	}
 
-	// For now this creates and joins threads in packs of NTHREADS
-	for (int counter = 0; counter < total_num;)
+	// Thread-safe tool initialization
+	pthread_t thread_id[NTHREADS];
+	int thread_state[NTHREADS];
+	for (int i = 0; i < NTHREADS; i++) thread_state[i] = THREAD_STOPPED;
+	static int primes[MAXPRIMES];
+	for (int i = 0; i < MAXPRIMES; i++) primes[i] = NULL;
+	pthread_mutex_t m_p;
+	pthread_mutex_init(&m_p);
+
+	// Creating threads
+	int counter = 0;
+	while (counter < total_num)
 	{
-		// Creating threads
-		int j = 0;
-		for (int i = 0; i < NTHREADS && counter < total_num; i++, j++, counter++)
+		for (int i = 0; i < NTHREADS; i++)
 		{
-			pthread_create(&thread_id[i], NULL, check_fact, (void*) &ptr[counter]);
-		}
+			// If this thread is running, try with next.
+			if (thread_state[i] == THREAD_RUNNING) continue;
+			else
+			{
+				// This struct is passed to each thread
+				// Threads take care of freeing the struct memory
+				PTHRARG arg = (PTHRARG) malloc(sizeof(THRARG));
+				arg->number = ptr[counter];
+				arg->array = primes;
+				arg->status = &thread_state[i];
+				arg->mutex = m_p;
 
-		// Joining threads
-		for (int i = 0; i < j; i++)
-		{
-			pthread_join(thread_id[i], NULL);
+				pthread_create(&thread_id[i], NULL, check_fact, (void*) arg);
+				thread_state[i] = THREAD_RUNNING;
+				counter++;
+				if (counter >= total_num) break;
+			}
 		}
-
 	}
+
+	// Joining threads
+	// TODO rewrite for status
+	for (int i = 0; i < j; i++)
+	{
+		pthread_join(thread_id[i], NULL);
+	}
+
+
 	free(ptr);
 }
 
+/*
 
+*/
 int main(int argc, char *argv[])
 {
 	if (argc != 3)
