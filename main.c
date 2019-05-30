@@ -9,6 +9,8 @@
 /*
 compile with:
 gcc -pthread main.c -o prog
+test with:
+./prog 1000000000 1000010000
 */
 
 void *check_fact(void *ptr)
@@ -42,10 +44,7 @@ void factorial(const int start, const int end)
 	pthread_t thread_id[NTHREADS];
 	int total_num = end - start + 1;
 	int *ptr = (int*)malloc(total_num * sizeof(int));
-	for (int i = 0; i < total_num; i++)
-	{
-		ptr[i] = i + start;
-	}
+	for (int i = 0; i < total_num; i++) ptr[i] = i + start;
 
 	// For now this creates and joins threads in packs of NTHREADS
 	for (int counter = 0; counter < total_num;)
