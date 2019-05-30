@@ -6,11 +6,15 @@
 
 #define NTHREADS 10
 
-// make with:
-// alias mk='gcc -pthread main.c -o prog'
+/*
+compile with:
+gcc -pthread main.c -o prog
+*/
+
 void *check_fact(void *ptr)
 {
-	// We don't dare touch the ptr, so just copying it with thread-safe functions
+	// We don't dare touch the ptr, and it makes the code look clearer
+	// so just copying it with thread-safe function
 	int number;
 	memcpy(&number, ptr, sizeof(int));
 
@@ -25,26 +29,8 @@ void *check_fact(void *ptr)
 			break;
 		}
 	}
-	// if (number <= 3) isprime = true;
-	// else if (number % 2 == 0) isprime = false;
-	// else if (number % 3 == 0) isprime = false;
-	// else
-	// {
-	// 	int i = 5, w = 2;
-	// 	while (i * i <= number)
-	// 	{
-	// 		if (number % i == 0)
-	// 		{
-	// 			isprime = false;
-	// 			break;
-	// 		}
-	//
-	// 		i += w;
-	// 		w = 6 - w;
-	// 	}
-	// 	isprime = true;
-	// }
 
+	// Finally, return the value
 	if (isprime) printf("Found a prime number: %i\n", number);
 	// void pthread_exit(void *retval)
 }
