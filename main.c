@@ -8,26 +8,28 @@
 #define MAXPRIMES				1000
 #define THREAD_STOPPED	0xDEAD
 #define THREAD_RUNNING	0xBEEF
+#define NONE						0
 
 /*
 compile with:
 gcc -pthread main.c -o prog
 */
 
-struct // thread_args
+struct thread_args
 {
 	int number;
-	int *array;
+	int *array; // CRITICAL
 	int *status;
 	pthread_mutex_t mutex;
-} THRARG, *PTHRARG;
+} THRARG;
 
 
 void *check_fact(void *arguments)
 {
-	PTHRARG args = arguments;
+	struct thread_args *args = arguments;
 	int number = args->number;
 	int *array = args->array;
+	int *status = args->status;
 	pthread_mutex_t m = args->mutex;
 	static int index = 0;
 
@@ -37,12 +39,14 @@ void *check_fact(void *arguments)
 			if (number % i == 0)
 				{
 					free(args);
-					return 1;
+					return 0;
 				}
 
 	// Finally, return the value
 	// TODO return the value
+
 	free(args);
+	status[0] = THREAD_STOPPED;
 	return 0;
 }
 
@@ -51,40 +55,44 @@ void factorial(const int start, const int end)
 {
 	// Generate numbers in given range
 	int total_num = end - start + 1;
-	int *ptr = (int*) malloc(total_num * sizeof(int));
+	int *numbers = (int*) malloc(total_num * sizeof(int));
 	for (int i = 0; i < total_num; i++)
-		ptr[i] = i + start;
+		numbers[i] = i + start;
 
 	// Thread-safe tool initialization
 	pthread_t thread_id[NTHREADS];
 	int thread_state[NTHREADS];
 	for (int i = 0; i < NTHREADS; i++) thread_state[i] = THREAD_STOPPED;
 	static int primes[MAXPRIMES];
-	for (int i = 0; i < MAXPRIMES; i++) primes[i] = NULL;
+	for (int i = 0; i < MAXPRIMES; i++) primes[i] = NONE;
 	pthread_mutex_t m_p;
-	pthread_mutex_init(&m_p);
+	pthread_mutex_init(&m_p, NULL);
 
-	// Creating threads
-	int counter = 0;
-	while (counter < total_num)
+	// Creating threads until we've passed all of the numbers to check
+
+	for (int counter = 0; counter < total_num;)
 	{
 		for (int i = 0; i < NTHREADS; i++)
 		{
-			// If this thread is running, try with next.
+			// If this thread is running, try with next
 			if (thread_state[i] == THREAD_RUNNING) continue;
 			else
 			{
 				// This struct is passed to each thread
 				// Threads take care of freeing the struct memory
-				PTHRARG arg = (PTHRARG) malloc(sizeof(THRARG));
-				arg->number = ptr[counter];
+				struct thread_args *arg = malloc(sizeof(THRARG));
+				arg->number = numbers[counter];
 				arg->array = primes;
 				arg->status = &thread_state[i];
+				// Setting this before creating the thread to avoid race condition
+				thread_state[i] = THREAD_RUNNING;
 				arg->mutex = m_p;
 
+				sleep(0.01); // Precautionary, hopefully not needed
 				pthread_create(&thread_id[i], NULL, check_fact, (void*) arg);
-				thread_state[i] = THREAD_RUNNING;
+
 				counter++;
+				// Check to prevent creating more threads when we're already done
 				if (counter >= total_num) break;
 			}
 		}
@@ -92,13 +100,13 @@ void factorial(const int start, const int end)
 
 	// Joining threads
 	// TODO rewrite for status
-	for (int i = 0; i < j; i++)
-	{
-		pthread_join(thread_id[i], NULL);
-	}
+	// for (int i = 0; i < j; i++)
+	// {
+	// 	pthread_join(thread_id[i], NULL);
+	// }
 
-
-	free(ptr);
+	pthread_mutex_destroy(&m_p);
+	free(numbers);
 }
 
 /*
