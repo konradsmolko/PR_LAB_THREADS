@@ -3,6 +3,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <unistd.h>
 
 #define NTHREADS				10
 #define MAXPRIMES				1000
@@ -13,6 +14,8 @@
 /*
 compile with:
 gcc -pthread main.c -o prog
+test with:
+./prog 1000000000 1000010000
 */
 
 struct thread_args
@@ -20,17 +23,17 @@ struct thread_args
 	int number;
 	int *array; // CRITICAL
 	int *status;
-	pthread_mutex_t mutex;
+	pthread_mutex_t *mutex;
 } THRARG;
 
 
 void *check_fact(void *arguments)
 {
 	struct thread_args *args = arguments;
-	int number = args->number;
+	const int number = args->number;
 	int *array = args->array;
 	int *status = args->status;
-	pthread_mutex_t m = args->mutex;
+	pthread_mutex_t *mutex = args->mutex;
 	static int index = 0;
 
 	// Magic happens here
@@ -39,12 +42,17 @@ void *check_fact(void *arguments)
 			if (number % i == 0)
 				{
 					free(args);
+					status[0] = THREAD_STOPPED;
 					return 0;
 				}
 
 	// Finally, return the value
-	// TODO return the value
+	pthread_mutex_lock(mutex);
+	array[index] = number;
+	index++;
+	pthread_mutex_unlock(mutex);
 
+	// Cleanup
 	free(args);
 	status[0] = THREAD_STOPPED;
 	return 0;
@@ -65,11 +73,10 @@ void factorial(const int start, const int end)
 	for (int i = 0; i < NTHREADS; i++) thread_state[i] = THREAD_STOPPED;
 	static int primes[MAXPRIMES];
 	for (int i = 0; i < MAXPRIMES; i++) primes[i] = NONE;
-	pthread_mutex_t m_p;
-	pthread_mutex_init(&m_p, NULL);
+	pthread_mutex_t mutex;
+	pthread_mutex_init(&mutex, NULL);
 
 	// Creating threads until we've passed all of the numbers to check
-
 	for (int counter = 0; counter < total_num;)
 	{
 		for (int i = 0; i < NTHREADS; i++)
@@ -86,7 +93,7 @@ void factorial(const int start, const int end)
 				arg->status = &thread_state[i];
 				// Setting this before creating the thread to avoid race condition
 				thread_state[i] = THREAD_RUNNING;
-				arg->mutex = m_p;
+				arg->mutex = &mutex;
 
 				sleep(0.01); // Precautionary, hopefully not needed
 				pthread_create(&thread_id[i], NULL, check_fact, (void*) arg);
@@ -98,14 +105,22 @@ void factorial(const int start, const int end)
 		}
 	}
 
-	// Joining threads
-	// TODO rewrite for status
-	// for (int i = 0; i < j; i++)
-	// {
-	// 	pthread_join(thread_id[i], NULL);
-	// }
+	// Joining the remaining threads
+	for (int i = 0; i < NTHREADS; i++)
+		if (thread_state[i] == THREAD_RUNNING)
+			pthread_join(thread_id[i], NULL);
 
-	pthread_mutex_destroy(&m_p);
+	// Printing the primes
+	pthread_mutex_lock(&mutex); // Precautionary, *most likely not needed*
+	for (int i = 0; i < MAXPRIMES; i++)
+	{
+		if (primes[i] == NONE) break;
+		else printf("Prime: %i\n", primes[i]);
+	}
+	pthread_mutex_unlock(&mutex);
+
+	// Cleanup
+	pthread_mutex_destroy(&mutex);
 	free(numbers);
 }
 
