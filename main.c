@@ -29,6 +29,7 @@ struct thread_args
 
 void *check_fact(void *arguments)
 {
+	// Copying the argument struct for code beauty later on
 	struct thread_args *args = arguments;
 	const int number = args->number;
 	int *array = args->array;
@@ -47,6 +48,7 @@ void *check_fact(void *arguments)
 				}
 
 	// Finally, return the value
+	// CRITICAL SECTION
 	pthread_mutex_lock(mutex);
 	array[index] = number;
 	index++;
@@ -67,7 +69,7 @@ void factorial(const int start, const int end)
 	for (int i = 0; i < total_num; i++)
 		numbers[i] = i + start;
 
-	// Thread-safe tool initialization
+	// Initialization
 	pthread_t thread_id[NTHREADS];
 	int thread_state[NTHREADS];
 	for (int i = 0; i < NTHREADS; i++) thread_state[i] = THREAD_STOPPED;
@@ -95,7 +97,6 @@ void factorial(const int start, const int end)
 				thread_state[i] = THREAD_RUNNING;
 				arg->mutex = &mutex;
 
-				sleep(0.01); // Precautionary, hopefully not needed
 				pthread_create(&thread_id[i], NULL, check_fact, (void*) arg);
 
 				counter++;
@@ -111,13 +112,11 @@ void factorial(const int start, const int end)
 			pthread_join(thread_id[i], NULL);
 
 	// Printing the primes
-	pthread_mutex_lock(&mutex); // Precautionary, *most likely not needed*
 	for (int i = 0; i < MAXPRIMES; i++)
 	{
 		if (primes[i] == NONE) break;
 		else printf("Prime: %i\n", primes[i]);
 	}
-	pthread_mutex_unlock(&mutex);
 
 	// Cleanup
 	pthread_mutex_destroy(&mutex);
